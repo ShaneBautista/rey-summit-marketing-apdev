@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "804138084148",
+    "project_id": "flutter-rey-summit-marketing",
+    "storage_bucket": "flutter-rey-summit-marketing.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:804138084148:android:6ea8fc16887f4214802761",
+        "android_client_info": {
+          "package_name": "com.reysummitmarketing.test_for_apdev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBfTYLXYDTKUN8R_drHEp-OIjytFbjLj2Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
