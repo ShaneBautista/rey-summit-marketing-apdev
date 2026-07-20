@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../models/branch_model.dart';
+import '../models/inventory_item_model.dart';
 import '../services/branch_service.dart';
+import '../services/inventory_service.dart';
 import 'admin_colors.dart';
 import 'inventory_tab.dart';
 
@@ -14,6 +16,7 @@ class BranchesTab extends StatefulWidget {
 
 class _BranchesTabState extends State<BranchesTab> {
   final BranchService _branchService = BranchService();
+  final InventoryService _inventoryService = InventoryService();
   late Future<List<BranchModel>> _future;
 
   @override
@@ -35,6 +38,97 @@ class _BranchesTabState extends State<BranchesTab> {
       builder: (_) => _BranchFormSheet(existing: existing),
     );
     if (result == true) _refresh();
+  }
+
+  /// Adds a product straight to [branch] — the Branch Management version
+  /// of Inventory's "Add Product". Unlike the Inventory tab's dialog,
+  /// there's no branch dropdown here: the branch is already fixed by
+  /// which card the admin tapped "Add Product" on.
+  Future<void> _addProductToBranch(BranchModel branch) async {
+    final nameController = TextEditingController();
+    final skuController = TextEditingController();
+    final qtyController = TextEditingController();
+    final priceController = TextEditingController();
+
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Add Product — ${branch.name}'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: 'Product name', hintText: 'e.g. Ice Tube – Small'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: skuController,
+                decoration: const InputDecoration(labelText: 'SKU', hintText: 'e.g. ITS-001'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: qtyController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Starting quantity', hintText: 'e.g. 100'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: priceController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Price (₱)', hintText: 'e.g. 45'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Add product'),
+          ),
+        ],
+      ),
+    );
+
+    if (created != true) return;
+
+    final name = nameController.text.trim();
+    final sku = skuController.text.trim();
+    final qty = int.tryParse(qtyController.text) ?? 0;
+    final price = double.tryParse(priceController.text) ?? 0;
+
+    if (name.isEmpty || sku.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name and SKU are required.')),
+      );
+      return;
+    }
+
+    try {
+      await _inventoryService.addInventoryItem(InventoryItem(
+        id: '', // ignored by addInventoryItem — the doc id is derived from sku + branchId
+        sku: sku,
+        name: name,
+        qty: qty,
+        price: price,
+        branchId: branch.id,
+        branchName: branch.name,
+        restocked: DateTime.now(),
+      ));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$name added to ${branch.name}.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not add product: $e')),
+      );
+    }
   }
 
   @override
@@ -82,6 +176,7 @@ class _BranchesTabState extends State<BranchesTab> {
                       index: i + 1,
                       branch: branches[i],
                       onEdit: () => _openForm(existing: branches[i]),
+                      onAddProduct: () => _addProductToBranch(branches[i]),
                     ),
                   ),
                 ),
@@ -97,7 +192,13 @@ class _BranchCard extends StatelessWidget {
   final int index;
   final BranchModel branch;
   final VoidCallback onEdit;
-  const _BranchCard({required this.index, required this.branch, required this.onEdit});
+  final VoidCallback onAddProduct;
+  const _BranchCard({
+    required this.index,
+    required this.branch,
+    required this.onEdit,
+    required this.onAddProduct,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -191,6 +292,21 @@ class _BranchCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onAddProduct,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Add Product'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: kAdminGreen,
+                side: const BorderSide(color: kAdminGreen),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
           ),
         ],
       ),

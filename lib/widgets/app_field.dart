@@ -18,6 +18,7 @@ class AppField extends StatefulWidget {
   final TextInputType? keyboardType;
   final String? Function(String?)? validator;
   final TextInputAction? textInputAction;
+  final Iterable<String>? autofillHints;
 
   const AppField({
     super.key,
@@ -29,6 +30,7 @@ class AppField extends StatefulWidget {
     this.keyboardType,
     this.validator,
     this.textInputAction,
+    this.autofillHints,
   });
 
   @override
@@ -68,6 +70,7 @@ class _AppFieldState extends State<AppField> {
             keyboardType: widget.keyboardType,
             textInputAction: widget.textInputAction,
             validator: widget.validator,
+            autofillHints: widget.autofillHints,
             // Re-validates as the person types once they've already tried
             // to submit once — so an error clears itself the moment it's
             // fixed instead of sitting there until the next submit tap.

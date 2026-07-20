@@ -7,7 +7,7 @@ import '../widgets/app_field.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart';
 import '../utils/validators.dart';
-import 'verify_email_page.dart';
+import '../routing.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -71,16 +71,9 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (!mounted) return;
-      // Fire off the verification email now that the account exists.
-      await _authService.sendEmailVerification();
-
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => VerifyEmailPage(email: emailController.text.trim()),
-        ),
-      );
+      // Account creation no longer requires email verification —
+      // go straight into the app.
+      await routeToRoleHome(context);
     } on FirebaseAuthException catch (e) {
       _showMessage(e.message ?? 'Sign up failed');
     } catch (e) {
@@ -148,6 +141,7 @@ class _SignUpPageState extends State<SignUpPage> {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Form(
             key: _formKey,
+            child: AutofillGroup(
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -178,22 +172,27 @@ class _SignUpPageState extends State<SignUpPage> {
               _roleToggle(),
 
               AppField(
+                key: const ValueKey('firstName'),
                 controller: firstNameController,
                 label: 'First Name',
                 hint: 'Enter first name',
                 icon: Icons.person_outline,
                 validator: (v) => Validators.required(v, label: 'First name'),
                 textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.givenName],
               ),
               AppField(
+                key: const ValueKey('lastName'),
                 controller: lastNameController,
                 label: 'Last Name',
                 hint: 'Enter last name',
                 icon: Icons.person_outline,
                 validator: (v) => Validators.required(v, label: 'Last name'),
                 textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.familyName],
               ),
               AppField(
+                key: const ValueKey('phone'),
                 controller: phoneController,
                 label: 'Mobile Number',
                 hint: 'Enter mobile number',
@@ -201,6 +200,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 keyboardType: TextInputType.phone,
                 validator: Validators.phone,
                 textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.telephoneNumber],
               ),
 
               // Position and Department were removed — an employee's role
@@ -209,6 +209,7 @@ class _SignUpPageState extends State<SignUpPage> {
               // used to look the person up / verify they're on staff.
               if (selectedRole == UserRole.employee) ...[
                 AppField(
+                  key: const ValueKey('employeeId'),
                   controller: employeeIdController,
                   label: 'Employee ID',
                   hint: 'Enter employee ID',
@@ -219,6 +220,7 @@ class _SignUpPageState extends State<SignUpPage> {
               ],
 
               AppField(
+                key: const ValueKey('email'),
                 controller: emailController,
                 label: 'Email Address',
                 hint: 'Enter email address',
@@ -226,8 +228,10 @@ class _SignUpPageState extends State<SignUpPage> {
                 keyboardType: TextInputType.emailAddress,
                 validator: Validators.email,
                 textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email],
               ),
               AppField(
+                key: const ValueKey('password'),
                 controller: passwordController,
                 label: 'Password',
                 hint: 'Create password',
@@ -235,8 +239,10 @@ class _SignUpPageState extends State<SignUpPage> {
                 obscure: true,
                 validator: (v) => Validators.minLength(v, 6, label: 'Password'),
                 textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.newPassword],
               ),
               AppField(
+                key: const ValueKey('confirmPassword'),
                 controller: confirmController,
                 label: 'Confirm Password',
                 hint: 'Re-enter password',
@@ -244,6 +250,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 obscure: true,
                 validator: (v) => Validators.matches(v, passwordController.text, label: 'Passwords'),
                 textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.newPassword],
               ),
 
               GestureDetector(
@@ -341,7 +348,7 @@ class _SignUpPageState extends State<SignUpPage> {
               ),
               const SizedBox(height: 20),
             ],
-          )),
+          ))),
         ),
       ),
     );

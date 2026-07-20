@@ -104,6 +104,35 @@ class InventoryService {
     });
   }
 
+  /// Creates a brand-new inventory document — the "Add Product" action on
+  /// the admin Inventory screen. Uses the same `${sku}_${branchId}` id
+  /// scheme as [seedSampleInventory] so a given SKU can only exist once
+  /// per branch.
+  Future<void> addInventoryItem(InventoryItem item) async {
+    await _inventory.doc('${item.sku}_${item.branchId}').set(item.toMap());
+  }
+
+  /// Removes stock for one inventory document (the "Reduce Stock" action
+  /// on the admin Inventory screen). Runs as a transaction so the qty
+  /// never goes below zero even if two reductions happen at once — it
+  /// clamps to 0 instead of throwing when [removeQty] is larger than
+  /// what's on hand.
+  Future<void> reduceStock({required String docId, required int removeQty}) async {
+    final docRef = _inventory.doc(docId);
+    await _firestore.runTransaction((transaction) async {
+      final snap = await transaction.get(docRef);
+      final currentQty = (snap.data()?['qty'] as num?)?.toInt() ?? 0;
+      final newQty = (currentQty - removeQty).clamp(0, currentQty);
+      transaction.update(docRef, {'qty': newQty});
+    });
+  }
+
+  /// Deletes one inventory document entirely — the "Delete" action on the
+  /// admin Inventory screen. This removes the product from that specific
+  /// branch's inventory only; the same SKU at another branch is a
+  /// separate document and is untouched.
+  Future<void> deleteInventoryItem(String docId) => _inventory.doc(docId).delete();
+
   /// [fetchInventory] falls back to [_seedInventory] purely client-side
   /// when the Firestore `inventory` collection is empty — that's why the
   /// admin Inventory screen can show sample rows even on a brand-new

@@ -9,7 +9,6 @@ import '../routing.dart';
 import '../utils/validators.dart';
 import 'forgot_password_page.dart';
 import 'signup_page.dart';
-import 'verify_email_page.dart';
 
 class Homepage extends StatefulWidget {
   const Homepage({super.key});
@@ -46,19 +45,7 @@ class _HomepageState extends State<Homepage> {
       );
       if (!mounted) return;
 
-      final verified = await _authService.isEmailVerified();
-      if (!mounted) return;
-
-      if (!verified) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => VerifyEmailPage(email: emailController.text.trim()),
-          ),
-        );
-        return;
-      }
-
+      // Email verification is no longer required to use the app.
       await routeToRoleHome(context);
     } on FirebaseAuthException catch (e) {
       _showMessage(e.message ?? 'Login failed.');

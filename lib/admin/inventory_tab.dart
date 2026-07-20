@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../models/branch_model.dart';
 import '../models/inventory_item_model.dart';
+import '../services/branch_service.dart';
 import '../services/inventory_service.dart';
 import 'admin_colors.dart';
 
@@ -13,6 +15,7 @@ class InventoryTab extends StatefulWidget {
 
 class _InventoryTabState extends State<InventoryTab> {
   final InventoryService _inventoryService = InventoryService();
+  final BranchService _branchService = BranchService();
   late Stream<List<InventoryItem>> _inventoryStream;
 
   String _search = '';
@@ -68,6 +71,183 @@ class _InventoryTabState extends State<InventoryTab> {
     }
   }
 
+  Future<void> _reduceStock(InventoryItem item) async {
+    final controller = TextEditingController();
+    final removeQty = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Reduce stock — ${item.name}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Quantity to remove',
+            hintText: 'e.g. 10',
+            helperText: 'Currently ${item.qty} in stock',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, int.tryParse(controller.text)),
+            child: const Text('Remove stock'),
+          ),
+        ],
+      ),
+    );
+
+    if (removeQty == null || removeQty <= 0) return;
+
+    try {
+      await _inventoryService.reduceStock(docId: item.id, removeQty: removeQty);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Removed $removeQty from ${item.name}.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not reduce stock: $e')),
+      );
+    }
+  }
+
+  Future<void> _addProduct() async {
+    final branches = await _branchService.fetchBranches();
+    if (!mounted) return;
+
+    final nameController = TextEditingController();
+    final skuController = TextEditingController();
+    final qtyController = TextEditingController();
+    final priceController = TextEditingController();
+    BranchModel? selectedBranch = branches.isNotEmpty ? branches.first : null;
+
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Add Product'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  autofocus: true,
+                  decoration: const InputDecoration(labelText: 'Product name', hintText: 'e.g. Ice Tube – Small'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: skuController,
+                  decoration: const InputDecoration(labelText: 'SKU', hintText: 'e.g. ITS-001'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: qtyController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Starting quantity', hintText: 'e.g. 100'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: priceController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Price (₱)', hintText: 'e.g. 45'),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<BranchModel>(
+                  value: selectedBranch,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Branch'),
+                  items: branches
+                      .map((b) => DropdownMenuItem(value: b, child: Text(b.name, overflow: TextOverflow.ellipsis)))
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => selectedBranch = v),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Add product'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (created != true) return;
+
+    final name = nameController.text.trim();
+    final sku = skuController.text.trim();
+    final qty = int.tryParse(qtyController.text) ?? 0;
+    final price = double.tryParse(priceController.text) ?? 0;
+
+    if (name.isEmpty || sku.isEmpty || selectedBranch == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name, SKU, and branch are required.')),
+      );
+      return;
+    }
+
+    try {
+      await _inventoryService.addInventoryItem(InventoryItem(
+        id: '', // ignored by addInventoryItem — the doc id is derived from sku + branchId
+        sku: sku,
+        name: name,
+        qty: qty,
+        price: price,
+        branchId: selectedBranch!.id,
+        branchName: selectedBranch!.name,
+        restocked: DateTime.now(),
+      ));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$name added to ${selectedBranch!.name}.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not add product: $e')),
+      );
+    }
+  }
+
+  Future<void> _deleteItem(InventoryItem item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete product?'),
+        content: Text('This removes "${item.name}" (${item.sku}) from ${item.branchName}\'s inventory. This can\'t be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: kAdminRed),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _inventoryService.deleteInventoryItem(item.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${item.name} deleted from ${item.branchName}.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not delete: $e')),
+      );
+    }
+  }
+
   List<InventoryItem> _applyFilters(List<InventoryItem> items) {
     return items.where((item) {
       final matchesSearch = _search.isEmpty ||
@@ -103,6 +283,16 @@ class _InventoryTabState extends State<InventoryTab> {
                 children: [
                   const Text('Inventory', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kAdminDarkBlue)),
                   const Spacer(),
+                  FilledButton.icon(
+                    onPressed: _addProduct,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add Product'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: kAdminBlue,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
                   IconButton(
                     onPressed: () => setState(() => _inventoryStream = _inventoryService.streamInventory()),
                     icon: const Icon(Icons.refresh, color: kAdminBlue),
@@ -169,7 +359,12 @@ class _InventoryTabState extends State<InventoryTab> {
               else
                 ...filtered.map((item) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _InventoryCard(item: item, onRestock: () => _restock(item)),
+                      child: _InventoryCard(
+                        item: item,
+                        onRestock: () => _restock(item),
+                        onReduceStock: () => _reduceStock(item),
+                        onDelete: () => _deleteItem(item),
+                      ),
                     )),
             ],
           ),
@@ -233,7 +428,14 @@ class _FilterDropdown extends StatelessWidget {
 class _InventoryCard extends StatelessWidget {
   final InventoryItem item;
   final VoidCallback onRestock;
-  const _InventoryCard({required this.item, required this.onRestock});
+  final VoidCallback onReduceStock;
+  final VoidCallback onDelete;
+  const _InventoryCard({
+    required this.item,
+    required this.onRestock,
+    required this.onReduceStock,
+    required this.onDelete,
+  });
 
   Color get _statusColor {
     switch (item.status) {
@@ -304,14 +506,33 @@ class _InventoryCard extends StatelessWidget {
                 child: Text(item.branchName, style: const TextStyle(fontSize: 12, color: kAdminCardGrey)),
               ),
               TextButton.icon(
+                onPressed: item.qty <= 0 ? null : onReduceStock,
+                icon: const Icon(Icons.remove_circle_outline, size: 16),
+                label: const Text('Reduce'),
+                style: TextButton.styleFrom(
+                  foregroundColor: kAdminRed,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+              TextButton.icon(
                 onPressed: onRestock,
                 icon: const Icon(Icons.add_box_outlined, size: 16),
                 label: const Text('Restock'),
                 style: TextButton.styleFrom(
                   foregroundColor: kAdminBlue,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   visualDensity: VisualDensity.compact,
                 ),
+              ),
+              IconButton(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline, size: 19),
+                color: kAdminRed,
+                tooltip: 'Delete product',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
               ),
             ],
           ),
