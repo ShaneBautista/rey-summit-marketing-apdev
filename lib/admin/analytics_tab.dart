@@ -106,8 +106,14 @@ class _AnalyticsTabState extends State<AnalyticsTab> {
                     icon: Icons.local_shipping_outlined,
                     iconColor: kAdminBlue,
                     value: '${summary?.deliveries ?? 0}',
-                    label: 'Deliveries',
+                    label: 'Delivered',
                     deltaLabel: '+9%',
+                  ),
+                  StatCard(
+                    icon: Icons.pending_actions_outlined,
+                    iconColor: kAdminAmber,
+                    value: '${summary?.pendingDeliveries ?? 0}',
+                    label: 'Awaiting Delivery',
                   ),
                   StatCard(
                     icon: Icons.people_outline,

@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 enum UserRole {
   customer,
   employee,
@@ -13,6 +15,7 @@ class AppUserModel {
   final String? address; // customer
   final String? employeeId; // employee
   final String? branchId; // employee — which branch they're assigned to
+  final DateTime? createdAt; // when this account was registered
 
   const AppUserModel({
     required this.uid,
@@ -24,6 +27,7 @@ class AppUserModel {
     this.address,
     this.employeeId,
     this.branchId,
+    this.createdAt,
   });
 
   Map<String, dynamic> toMap() {
@@ -66,6 +70,7 @@ class AppUserModel {
       address: map['address'] as String?,
       employeeId: map['employeeId'] as String?,
       branchId: map['branchId'] as String?,
+      createdAt: map['createdAt'] is Timestamp ? (map['createdAt'] as Timestamp).toDate() : null,
     );
   }
 }

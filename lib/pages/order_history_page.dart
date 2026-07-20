@@ -116,7 +116,7 @@ class _OrderCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
                 children: [
-                  const Icon(Icons.icecream_outlined, size: 16, color: kFieldGrey),
+                  const Icon(Icons.view_in_ar_outlined, size: 16, color: kFieldGrey),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('${item.name}  x${item.quantity}',

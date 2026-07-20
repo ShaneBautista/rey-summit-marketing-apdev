@@ -60,7 +60,12 @@ class AuthService {
       await _firestore
           .collection("users")
           .doc(credential.user!.uid)
-          .set(user.toMap());
+          .set({
+        ...user.toMap(),
+        // Server-generated so it reflects Firestore's clock, not the
+        // device's — accurate even if the phone's date/time is wrong.
+        'createdAt': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       // The Auth account was created, but the Firestore profile write failed.
       // Log clearly so this doesn't look like a silent no-op in the console.

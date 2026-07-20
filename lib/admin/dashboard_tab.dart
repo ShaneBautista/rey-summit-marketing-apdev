@@ -18,22 +18,31 @@ class _DashboardTabState extends State<DashboardTab> {
   final InventoryService _inventoryService = InventoryService();
   final AnalyticsService _analyticsService = AnalyticsService();
 
-  late Future<List<InventoryItem>> _inventoryFuture;
+  late Stream<List<InventoryItem>> _inventoryStream;
   late Future<AnalyticsSummary> _summaryFuture;
 
   @override
   void initState() {
     super.initState();
-    _inventoryFuture = _inventoryService.fetchInventory();
+    // A stream, not a one-shot fetch: DashboardTab lives inside the
+    // AdminShell's IndexedStack, which keeps this State alive when you
+    // switch to another tab and back — so a one-shot Future fetched here
+    // would never re-run. That means placing an order (which decrements
+    // `inventory` via OrderService.placeOrder -> InventoryService
+    // .decrementStock) or restocking from the Inventory tab would leave
+    // these numbers stale until a manual pull-to-refresh. streamInventory()
+    // stays subscribed and pushes every stock change immediately, the same
+    // fix already applied to Order History and the Inventory tab itself.
+    _inventoryStream = _inventoryService.streamInventory();
     _summaryFuture = _analyticsService.computeSummary();
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _inventoryFuture = _inventoryService.fetchInventory();
+      _inventoryStream = _inventoryService.streamInventory();
       _summaryFuture = _analyticsService.computeSummary();
     });
-    await Future.wait([_inventoryFuture, _summaryFuture]);
+    await Future.wait([_inventoryStream.first, _summaryFuture]);
   }
 
   static const _monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -56,8 +65,8 @@ class _DashboardTabState extends State<DashboardTab> {
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5, fontSize: 13)),
           ),
           const SizedBox(height: 16),
-          FutureBuilder<List<InventoryItem>>(
-            future: _inventoryFuture,
+          StreamBuilder<List<InventoryItem>>(
+            stream: _inventoryStream,
             builder: (context, snapshot) {
               final items = snapshot.data ?? [];
               final totalStock = items.fold<int>(0, (sum, i) => sum + i.qty);
@@ -104,8 +113,8 @@ class _DashboardTabState extends State<DashboardTab> {
           const SizedBox(height: 20),
           _SectionCard(
             title: 'Recent Stock Activity',
-            child: FutureBuilder<List<InventoryItem>>(
-              future: _inventoryFuture,
+            child: StreamBuilder<List<InventoryItem>>(
+              stream: _inventoryStream,
               builder: (context, snapshot) {
                 final items = (snapshot.data ?? [])..sort((a, b) => b.restocked.compareTo(a.restocked));
                 if (items.isEmpty) {

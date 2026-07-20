@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/order_model.dart';
 import '../models/product_model.dart';
 import 'inventory_service.dart';
+import 'sales_service.dart';
 
 /// This is the bridge between the customer app and the admin app.
 ///
@@ -28,6 +29,7 @@ class OrderService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final InventoryService _inventoryService = InventoryService();
+  final SalesService _salesService = SalesService();
 
   CollectionReference<Map<String, dynamic>> get _orders => _firestore.collection('orders');
 
@@ -61,7 +63,7 @@ class OrderService {
             })
         .toList();
 
-    await _orders.add({
+    final docRef = await _orders.add({
       'uid': uid,
       'branchId': branchId,
       'branchName': branchName,
@@ -73,6 +75,21 @@ class OrderService {
       if (deliveryAddress != null && deliveryAddress.isNotEmpty) 'deliveryAddress': deliveryAddress,
       if (paymentMethod != null && paymentMethod.isNotEmpty) 'paymentMethod': paymentMethod,
     });
+
+    // Mirrors this order into the `sales` collection — the finance-facing
+    // record SalesService/AnalyticsService expect. Considered final at
+    // checkout (not e.g. delayed until "delivered"); wrapped in try/catch
+    // so a `sales` write hiccup never blocks an order that already went
+    // through, same pattern as the stock decrement below.
+    try {
+      await _salesService.recordSale(
+        orderId: docRef.id,
+        amount: total,
+        paymentMethod: (paymentMethod != null && paymentMethod.isNotEmpty) ? paymentMethod : 'Cash on Delivery',
+      );
+    } catch (_) {
+      // Non-fatal — the order itself already went through.
+    }
 
     // Decrement stock for each item ordered. This is done client-side for
     // simplicity (a Cloud Function trigger on order creation would be the
@@ -147,6 +164,21 @@ class OrderService {
     final orders = snap.docs.map((d) => OrderModel.fromMap(d.id, d.data())).toList();
     orders.sort((a, b) => b.date.compareTo(a.date));
     return orders;
+  }
+
+  /// Realtime version of [fetchAllOrders] — the admin Deliveries tab uses
+  /// this so a newly-placed order (or a status change made from another
+  /// device) shows up immediately with no manual refresh.
+  Stream<List<OrderModel>> streamAllOrders({String? branchId}) {
+    Query<Map<String, dynamic>> query = _orders;
+    if (branchId != null) {
+      query = query.where('branchId', isEqualTo: branchId);
+    }
+    return query.snapshots().map((snap) {
+      final orders = snap.docs.map((d) => OrderModel.fromMap(d.id, d.data())).toList();
+      orders.sort((a, b) => b.date.compareTo(a.date));
+      return orders;
+    });
   }
 
   /// Admin marking an order's status (Processing -> Shipped -> ... ).

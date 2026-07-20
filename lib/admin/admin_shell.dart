@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../services/auth_service.dart';
+import '../services/product_service.dart';
 import '../pages/welcome_page.dart';
 import 'admin_colors.dart';
 import 'dashboard_tab.dart';
 import 'inventory_tab.dart';
 import 'analytics_tab.dart';
 import 'branches_tab.dart';
+import 'deliveries_tab.dart';
 
 /// The employee/admin app — shown instead of HomeDashboardPage when a
 /// signed-in user's profile role is `employee`. See homepage.dart's login
@@ -26,7 +28,19 @@ class _AdminShellState extends State<AdminShell> {
     InventoryTab(),
     AnalyticsTab(),
     BranchesTab(),
+    DeliveriesTab(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // `products` stayed empty because nothing ever called
+    // ProductService.seedFromLocalCatalog() — it's a no-op after the
+    // first successful run, so it's safe to fire on every admin app
+    // launch instead of needing a dedicated "Manage Products" screen
+    // with a seed button.
+    ProductService().seedFromLocalCatalog();
+  }
 
   Future<void> _signOut() async {
     await AuthService().signOut();
@@ -120,6 +134,7 @@ class _AdminBottomNav extends StatelessWidget {
     (icon: Icons.layers_outlined, label: 'Inventory'),
     (icon: Icons.bar_chart_outlined, label: 'Analytics'),
     (icon: Icons.apartment_outlined, label: 'Branches'),
+    (icon: Icons.local_shipping_outlined, label: 'Deliveries'),
   ];
 
   @override

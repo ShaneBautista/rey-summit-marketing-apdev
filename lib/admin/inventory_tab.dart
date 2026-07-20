@@ -266,7 +266,7 @@ class _InventoryCard extends StatelessWidget {
                 height: 40,
                 width: 40,
                 decoration: BoxDecoration(color: kAdminBlue.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                child: const Icon(Icons.icecream_outlined, color: kAdminBlue, size: 20),
+                child: const Icon(Icons.view_in_ar_outlined, color: kAdminBlue, size: 20),
               ),
               const SizedBox(width: 12),
               Expanded(

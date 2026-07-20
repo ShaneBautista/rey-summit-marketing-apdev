@@ -50,7 +50,17 @@ class InventoryService {
   /// `snapshots()`, so every restock, order-triggered decrement, or manual
   /// Firestore edit shows up on the Inventory screen immediately — the
   /// same fix already applied to Order History via streamMyOrders().
-  Stream<List<InventoryItem>> streamInventory({String? branchId}) async* {
+  ///
+  /// Wrapped in `.asBroadcastStream()` (see [streamInventory]) because the
+  /// Dashboard tab listens to the *same* Stream instance from two separate
+  /// StreamBuilders at once (stat cards + Recent Stock Activity). An
+  /// `async*` generator produces a single-subscription stream by default,
+  /// so the second `.listen()` call throws `Bad state: Stream has already
+  /// been listened to.` — that's the red error screen replacing the
+  /// Recent Stock Activity card, and it's also why nothing (including a
+  /// restock) appeared to update after that: the whole tab was stuck on
+  /// the crashed frame.
+  Stream<List<InventoryItem>> _streamInventoryImpl({String? branchId}) async* {
     final existing = await _inventory.limit(1).get();
     if (existing.docs.isEmpty) {
       await seedSampleInventory();
@@ -63,6 +73,10 @@ class InventoryService {
     yield* query.snapshots().map(
           (snap) => snap.docs.map((d) => InventoryItem.fromMap(d.id, d.data())).toList(),
         );
+  }
+
+  Stream<List<InventoryItem>> streamInventory({String? branchId}) {
+    return _streamInventoryImpl(branchId: branchId).asBroadcastStream();
   }
 
   Future<void> decrementStock({required String sku, required String branchId, required int by}) async {
